@@ -9,7 +9,7 @@
 **Objective:** Optimize website performance, SEO, and accessibility  
 **Original Site:** https://openclassrooms-student-center.github.io/Nina-Carducci-Dev/  
 **Optimized Site:** https://nina-carducci-dev-sigma.vercel.app/  
-**Repository:** [Your GitHub Repo Link]
+**Repository:** https://github.com/Adrianaabadl/Nina-Carducci-Dev
 
 ---
 
