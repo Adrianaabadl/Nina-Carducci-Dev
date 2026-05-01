@@ -113,4 +113,4 @@
 - [ ] Complete appendix with the full Lighthouse report.
 
 ## Appendix
-- Full Lighthouse audit report
+- [Full Lighthouse audit report](https://github.com/Adrianaabadl/Nina-Carducci-Dev/blob/development/lighthouse-report.pdf)
