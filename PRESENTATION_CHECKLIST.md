@@ -56,11 +56,11 @@ your photography portfolio website. Let me show you the results through
 Lighthouse audit, which measures four key metrics.
 
 As you can see here, we've achieved:
-- Performance: ___/100
-- SEO: ___/100  
-- Accessibility: ___/100
-- Best Practices: ___/100
-- Total page size: ___ MB (requirement: <5MB) ✅"
+- Performance: 99/100
+- SEO: 100/100  
+- Accessibility: 100/100
+- Best Practices: 100/100
+- Total page size: 4.4 MB (requirement: <5MB) ✅"
 ```
 
 **Actions:**
