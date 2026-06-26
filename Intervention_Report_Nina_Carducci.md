@@ -104,6 +104,7 @@
 - **Accessibility Score Improvement:** 68/100 → 100/100 (+32 points, 47% improvement)
 - **Wave Audit Result:** 0 errors detected (100% WCAG compliant)
 
+
 ## III - Site accessibility
 
 ### Accessibility before optimisation
@@ -137,6 +138,11 @@
 | 3 | Accessibility improvement | 68/100, multiple errors | 100/100, 0 errors | ✅ | WCAG compliant, all alt text added, semantic structure fixed |
 | 4 | Technical SEO | Missing structured data, 70/100 | Schema.org + 100/100 | ✅ | JSON-LD LocalBusiness implemented, rich snippets valid |
 | 5 | Performance optimization | 65/100 Lighthouse score | 99/100 Lighthouse score | ✅ | +34 points improvement, fastest page render |
+| 6 | Gallery navigation bug fix | Prev/Next buttons inoperative (`index = i` off-by-one) | Correct lightbox prev/next navigation with tag filter support | ✅ | Fixed in `maugallery.min.js`: `prevImage` uses `i-1`, `nextImage` uses `i+1` |
+| 7 | Gallery filter active state fix | Selected category shows no gold background (`active` class missing) | Gold background applied to active filter, matching default "Tous" style | ✅ | Fixed in `maugallery.min.js`: `filterByTag` now adds both `active-tag` and `active` |
+| 8 | Heading hierarchy fix | Headings out of order (H3 as title, H6 as body text, H1 in quotes) | Single H1 → H2 → H3 → H4 hierarchy, quotes demoted to `<div>`, intro to `<p>` | ✅ | Corrected all heading tags across `index.html`; Wave audit: 0 heading errors |
+| 9 | Layout shift (CLS 0.439) fix | Unsized images cause content to jump; CLS 0.439 flagged by Lighthouse | Explicit `width`/`height` on all key images; hero image preloaded | ✅ | Added dimensions to slider, nina, camera images; `<link rel="preload">` + `fetchpriority="high"` on hero |
+| 10 | Loading time / image delivery | LCP 1.9 s; 15 images ~30 MB JPEG/PNG; 22,323 KiB waste flagged by Lighthouse | LCP 0.8 s; 39 WebP files 4.4 MB; `srcset`/`sizes`/`loading="lazy"` on all images | ✅ | WebP conversion + 3 responsive sizes per image + lazy loading + hero LCP prioritisation |
 
 **Lighthouse Scores Achieved:**
 - ✅ Performance: 99/100 (Target: 90+ EXCEEDED)
@@ -145,12 +151,177 @@
 - ✅ SEO: 100/100 (Target: 90+ EXCEEDED)
 - ✅ Average Score: 99.75/100 (+24 points improvement from original 75.75)
 
-### To do / Solved
-- [✅] Lighthouse scores documented: All 4 metrics exceed 90% target
-- [✅] Wave accessibility audit: 0 errors verified
-- [✅] Image optimization: 85.3% reduction achieved (30 MB → 4.4 MB)
-- [✅] Schema.org LocalBusiness: JSON-LD implemented and validated
-- [✓] Pending: Add Lighthouse PDF report screenshot to Appendix
+## VI - Bugs Addressed
+
+> *"As you've probably noticed, there are some bugs in the code. Could you please fix them? The gallery's previous and next image navigation doesn't work. When you change filters to display images, the selected category is not visible. The category should normally have a gold background. The same as the default filter."*
+
+Two bugs were identified and corrected in `maugallery.min.js`.
+
+---
+
+### Bug 1 — Gallery lightbox: Previous / Next navigation not working
+
+**Before:**
+Clicking the `<` (Previous) or `>` (Next) buttons inside the gallery lightbox had no visible effect — the displayed image never changed regardless of how many times the buttons were clicked. The gallery appeared fully functional but was completely non-navigable once an image was opened.
+
+**After:**
+Clicking Previous or Next correctly cycles through the images. Wrapping is supported: Previous on the first image shows the last, and Next on the last image shows the first. The active category filter is respected — navigation stays within the currently filtered set of images.
+
+**How we solved it:**
+The bug was an off-by-one error inside `maugallery.js`. Both `prevImage()` and `nextImage()` correctly located the currently displayed image in the collection using its index `i`, but then assigned that *same* index to the variable used to retrieve the next image. As a result, `imagesCollection[index]` always pointed to the current image instead of the adjacent one.
+
+```javascript
+// BEFORE — both functions had the same error
+$(imagesCollection).each(function(i) {
+  if ($(activeImage).attr("src") === $(this).attr("src")) {
+    index = i;   // ← retrieves the current image, nothing changes
+  }
+});
+
+// AFTER — corrected per function
+// prevImage():
+index = i - 1;  // → moves to the preceding image (wraps to last)
+
+// nextImage():
+index = i + 1;  // → moves to the following image (wraps to first)
+```
+
+---
+
+### Bug 2 — Gallery filters: selected category shows no visual feedback
+
+**Before:**
+Clicking a category filter (e.g. "Concert", "Mariages", "Portrait") correctly filtered the displayed images, but the clicked button did not receive any visual highlight. Only the default "Tous" button ever appeared with the gold background, making it impossible for the user to know which filter was currently active.
+
+**After:**
+The selected filter button now receives the same gold background as the default "Tous" button (Bootstrap `.active` class applied). Switching between filters correctly moves the highlight to the newly selected category.
+
+**How we solved it:**
+The bug was in the `filterByTag()` function in `maugallery.js`. When a new filter was clicked, the function removed both `active` and `active-tag` classes from the previous selection, but only added `active-tag` to the newly clicked element — omitting the `active` class that Bootstrap's `.nav-pills` component uses to render the gold background.
+
+```javascript
+// BEFORE — "active" class never added to new selection
+$(".active-tag").removeClass("active active-tag");
+$(this).addClass("active-tag");          // ← gold background never applied
+
+// AFTER — both classes added to restore visual state
+$(".active-tag").removeClass("active active-tag");
+$(this).addClass("active-tag active");   // ← gold background correctly applied
+```
+
+---
+
+### Issue 3 — Broken heading hierarchy (H1 → H6)
+
+**Before:**
+The page used heading tags (`<h1>`–`<h6>`) inconsistently and out of order, breaking the semantic document structure. Screen readers and search engine crawlers rely on this hierarchy to understand page content. Key violations in the original `index.html`:
+
+| Element | Original tag | Problem |
+|---------|-------------|---------|
+| Site name "Nina Carducci" | `<h3>` | Page title not at H1 |
+| "A propos de moi" | `<h3>` | Section title skipping H1 and H2 |
+| Intro paragraph text | `<h6>` | Body copy marked as a heading |
+| "Portfolio" section title | `<h3>` | Section title without H1 or H2 above it |
+| Quote text (blockquote) | `<h1>` | Quote content using H1, displacing page title |
+| "Mes services" title | `<h3>` | Section title with no H1 or H2 parent |
+| Contact heading | `<h3>` | Section heading at wrong level |
+
+**After:**
+A single, uninterrupted H1 → H2 → H3 → H4 hierarchy applied across the full page:
+
+| Element | Fixed tag | Reason |
+|---------|-----------|--------|
+| Site name "Nina Carducci" | `<h1>` | Unique page title |
+| "A propos de moi" | `<h2>` | Top-level section heading |
+| Intro paragraph text | `<p><strong>…</strong></p>` | Body copy, not a heading |
+| "Portfolio" | `<h2>` | Top-level section heading |
+| Quote text | `<div>` | Decorative content, not structural |
+| "Mes services" | `<h2>` | Top-level section heading |
+| Contact heading | `<h2>` | Top-level section heading |
+
+**How we solved it:**
+Each heading tag was audited against its visual and semantic role. `<h3>` and `<h6>` elements used as section titles were promoted to `<h2>`. The quote `<h1>` elements — which had no heading role and violated the single-H1 rule — were replaced with `<div>` to preserve styling without polluting the heading tree. The intro text styled as `<h6>` was demoted to `<p>` with `<strong>` for visual emphasis.
+
+---
+
+### Issue 4 — Layout shift (CLS 0.439) caused by unsized images
+
+**Before:**
+Lighthouse flagged a Cumulative Layout Shift (CLS) score of **0.439** (threshold for "good" is ≤ 0.1). The primary culprit was `<div id="about">` shifting by 0.439 as the page loaded. Root cause: images had no `width` or `height` attributes, so the browser could not reserve space for them before they downloaded. When images loaded, they pushed surrounding content down, causing visible jumps. The hero slider image was the most impactful:
+
+```html
+<!-- BEFORE — no dimensions, browser cannot reserve layout space -->
+<img src="./assets/images/slider/ryoji-iwata-wUZjnOv7t0g-unsplash.jpg"
+     class="d-block w-100" alt="...">
+
+<img src="./assets/images/nina.png">
+```
+
+**After:**
+CLS eliminated by supplying explicit `width` and `height` on all key images so the browser can calculate aspect ratio and hold space before the image arrives. The hero image is additionally preloaded to arrive before first paint.
+
+```html
+<!-- AFTER — dimensions declared, layout space reserved immediately -->
+<img src="./assets/images/slider/ryoji-iwata-wUZjnOv7t0g-unsplash.webp"
+     width="1400" height="650"
+     fetchpriority="high" decoding="async"
+     class="d-block w-100" alt="Photographie de mode en studio">
+
+<img src="./assets/images/nina.webp"
+     width="560" height="700"
+     alt="Nina Carducci, photographe">
+```
+
+**How we solved it:**
+Three complementary changes were applied:
+1. **Explicit dimensions** (`width`/`height`) added to every significant image (slider, profile, camera, gallery items). The browser uses these to pre-allocate space in the layout before the image bytes arrive, preventing shifts.
+2. **`<link rel="preload" as="image">`** added in `<head>` for the hero slider image with `imagesrcset` and `fetchpriority="high"`, so it is fetched at the highest priority and available before the first render.
+3. **`fetchpriority="high"` and `decoding="async"`** added to the hero `<img>` to ensure it is treated as the Largest Contentful Paint (LCP) element and decoded without blocking the main thread.
+
+---
+
+### Issue 5 — Poor loading time (LCP 1.9 s) caused by oversized unoptimized images
+
+**Before:**
+Lighthouse reported a **Largest Contentful Paint (LCP) of 1.9 s** and flagged "Improve image delivery — estimated savings of 22,323 KiB". The original project shipped 15 images totalling ~30 MB, all in JPEG/PNG format, all full-resolution regardless of display size, with no responsive variants and no lazy loading:
+
+| Image | Original size | Displayed at | Waste |
+|-------|-------------|--------------|-------|
+| `jakob-owens-SiniLJkXhMc-unsplash.jpg` | 6,129 KiB | 364×546 px | 6,097 KiB |
+| `nino-van-prattenburg--443cl1uR_8-unsplash.jpg` | 2,468 KiB | 364×547 px | 2,438 KiB |
+| `nina.png` | 2,106 KiB | 365×364 px | 2,084 KiB |
+| `mateus-campos-felipe-…unsplash.jpg` | 1,879 KiB | 594×364 px | 1,849 KiB |
+| `hannah-busing-…unsplash.jpg` | 1,737 KiB | 455×364 px | 1,714 KiB |
+| `camera.png` | 1,625 KiB | 357×356 px | 1,604 KiB |
+| `ryoji-iwata-…unsplash.jpg` (hero) | 1,586 KiB | 1335×618 px | 1,452 KiB |
+| *(+ 8 more gallery images)* | … | … | … |
+
+**After:**
+**LCP: 0.8 s** (−58% improvement). Total image weight: **4.4 MB** (−85.3%). All images converted to WebP and served at the correct dimensions for each viewport:
+
+```html
+<!-- Gallery image: 3 responsive sizes, lazy-loaded -->
+<img src="./assets/images/gallery/concerts/aaron-paul-wnX-fXzB6Cw-unsplash.webp"
+     srcset="…-small.webp 200w, …-medium.webp 280w, …concerts/….webp 400w"
+     sizes="(max-width: 768px) 200px, 224px"
+     loading="lazy" alt="Concert photo: music stage lighting">
+
+<!-- Hero slider: responsive sizes, high priority -->
+<img src="./assets/images/slider/ryoji-iwata-wUZjnOv7t0g-unsplash.webp"
+     srcset="…-medium.webp 800w, ….webp 1400w"
+     sizes="(max-width: 768px) 800px, 1400px"
+     fetchpriority="high" decoding="async"
+     width="1400" height="650" alt="Photographie de mode en studio">
+```
+
+**How we solved it:**
+Four techniques were combined:
+1. **WebP conversion** — all JPEG/PNG images converted to WebP (25–35% smaller than JPEG at equivalent quality, with no perceptible quality loss at q=85).
+2. **Responsive variants** — each image was exported at 3 sizes (small ≈200 px, medium ≈800 px, full ≈400–1400 px). The browser selects the smallest version that covers the display size via `srcset` + `sizes`.
+3. **Lazy loading** — `loading="lazy"` added to all gallery images, deferring their download until they approach the viewport.
+4. **LCP prioritisation** — the hero slider image (the LCP element) is preloaded in `<head>` with `<link rel="preload" as="image" imagesrcset="…" fetchpriority="high">` and marked `fetchpriority="high"` on the `<img>` element, ensuring it loads at maximum priority and resolves LCP as fast as possible.
+
+---
 
 ## Appendix
 - [Full Lighthouse audit report](https://github.com/Adrianaabadl/Nina-Carducci-Dev/blob/development/lighthouse-report.pdf)
